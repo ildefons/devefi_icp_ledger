@@ -1,0 +1,14 @@
+{
+  "canisters": {
+    "test": {
+      "type": "motoko",
+      "main": "./test/maker/main.mo"
+    }
+   },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  },
+  "dfx": "0.15.2"
+}
