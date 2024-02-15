@@ -40,17 +40,17 @@ module {
             let timestamp = b.timestamp.timestamp_nanos;
             switch (op) {
                 case (#Transfer({to;fee;from;amount;spender})) {
-                    #transfer({
+                    #u_transfer({
                         timestamp;created_at_time;legacy_memo;memo;to;fee=Nat64.toNat(fee.e8s);from;amount=Nat64.toNat(amount.e8s);spender
                     })
                 };
                 case (#Burn({from; amount; spender})) {
-                    #burn({
+                    #u_burn({
                         timestamp;created_at_time;legacy_memo;memo;from;amount=Nat64.toNat(amount.e8s);spender
                     })
                 };
                 case (#Mint({to; amount})) {
-                    #mint({
+                    #u_mint({
                         timestamp;created_at_time;legacy_memo;memo;to;amount=Nat64.toNat(amount.e8s)
                     })
                 };

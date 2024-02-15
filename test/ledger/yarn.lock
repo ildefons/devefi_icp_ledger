@@ -51,6 +51,11 @@
     js-sha256 "^0.9.0"
     tweetnacl "^1.0.1"
 
+"@dfinity/ledger-icp@^2.2.0":
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/@dfinity/ledger-icp/-/ledger-icp-2.2.0.tgz#3f603194467514326988af5730e559642bf9a44d"
+  integrity sha512-4Nn5/wAX8XMTb8GJ2LftsuEwGznM1v7lAgbUl+DdnERTIQ2btfP8LWFG+45PQKM7NjWZFFTp5JDbW1gEKM1KbQ==
+
 "@dfinity/principal@0.15.7":
   version "0.15.7"
   resolved "https://registry.yarnpkg.com/@dfinity/principal/-/principal-0.15.7.tgz#311cf1072d6fd64b9b91476dda4d3ef5ddfcefea"
@@ -58,6 +63,11 @@
   dependencies:
     js-sha256 "^0.9.0"
     ts-node "^10.8.2"
+
+"@dfinity/utils@^2.1.1":
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/@dfinity/utils/-/utils-2.1.1.tgz#eb0fb06de032e364eebc0d8223f3cc1cb5e01a10"
+  integrity sha512-H4WEG4gEuQlAH/vKRbkvnUggoFkF4ffLSGQEh2aekThffm+iSaKwVQ9AnAvwFGaGBbSR3rLhHMIpPnZxchj+rA==
 
 "@infu/icblast@^2.0.46":
   version "2.0.46"

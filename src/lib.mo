@@ -91,8 +91,8 @@ module {
         var sender_instructions_cost : Nat64 = 0;
         var reader_instructions_cost : Nat64 = 0;
 
-        var callback_onReceive: ?((TxTypes.Transfer) -> ()) = null;
-        var callback_onSent: ?((TxTypes.Transfer) -> ()) = null;
+        var callback_onReceive: ?((TxTypes.Received) -> ()) = null;
+        var callback_onSent: ?((TxTypes.Sent) -> ()) = null;
         var callback_onMint: ?((TxTypes.Mint) -> ()) = null;
         var callback_onBurn: ?((TxTypes.Burn) -> ()) = null;
         // Sender 
@@ -149,6 +149,13 @@ module {
             };
         };
 
+        let nullSubaccount:Blob = subaccountToBlob(null);
+        // Usually we don't return 32 zeroes but null
+        private func formatSubaccount(s: Blob) : ?Blob {
+            if (s == nullSubaccount) null else ?s;
+        };
+
+
         // Reader
         let icrc_reader = IcpReader.Reader({
             mem = lmem.reader;
@@ -164,18 +171,18 @@ module {
                 let ?me = lmem.actor_principal else return;
                 label txloop for (tx in transactions.vals()) {
                     switch(tx) {
-                        case (#mint(mint)) {
+                        case (#u_mint(mint)) {
                             let ?subaccount = BTree.get(lmem.known_accounts, Blob.compare, mint.to) else continue txloop;
                             handle_incoming_amount(?subaccount, mint.amount);
-                            ignore do ? { callback_onMint!(mint); };
+                            ignore do ? { callback_onMint!({mint with to_subaccount = formatSubaccount(subaccount)}); };
                         };
 
-                        case (#transfer(tr)) {
+                        case (#u_transfer(tr)) {
                             switch(BTree.get(lmem.known_accounts, Blob.compare, tr.to)) {
                                 case (?subaccount) {
                                     if (tr.amount >= fee) { // ignore it since we can't even burn that
                                     handle_incoming_amount(?subaccount, tr.amount);
-                                    ignore do ? { callback_onReceive!(tr); };
+                                    ignore do ? { callback_onReceive!({tr with to_subaccount = formatSubaccount(subaccount)}); };
                                     }
                                 };
                                 case (null) ();
@@ -184,16 +191,16 @@ module {
                             switch(BTree.get(lmem.known_accounts, Blob.compare, tr.from)) {
                                 case (?subaccount) {
                                     handle_outgoing_amount(?subaccount, tr.amount + fee);
-                                    ignore do ? { callback_onSent!(tr); };
+                                    ignore do ? { callback_onSent!({tr with from_subaccount = formatSubaccount(subaccount)}); };
                                 };
                                 case (null) ();
                             };
                         };
 
-                        case (#burn(burn)) {
+                        case (#u_burn(burn)) {
                             let ?subaccount = BTree.get(lmem.known_accounts, Blob.compare, burn.from) else continue txloop;
                             handle_outgoing_amount(?subaccount, burn.amount + fee);
-                            ignore do ? { callback_onBurn!(burn); };
+                            ignore do ? { callback_onBurn!({burn with from_subaccount = formatSubaccount(subaccount)}); };
                         };
 
                         case (_) continue txloop;
@@ -205,6 +212,7 @@ module {
 
         icrc_sender.setGetReaderLastTxTime(icrc_reader.getReaderLastTxTime);
 
+ 
         /// The ICP ledger doesn't know all of its subaccount addresses
         /// This why we need to register them, so it can track balances and transactions
         /// Any transactions to or from a subaccount before registering it will be ignored
@@ -237,6 +245,7 @@ module {
         private func realStart() {
             let ?me = lmem.actor_principal else Debug.trap("no actor principal");
             Debug.print(debug_show(me));
+            registerSubaccount(null);
             if (started) Debug.trap("already started");
             started := true;
             icrc_sender.start(?me); // We can't call start from the constructor because this is not defined yet
@@ -318,13 +327,13 @@ module {
         };
 
         /// Called when a received transaction is confirmed. Only one function can be set. (except dust < fee)
-        public func onReceive(fn:(TxTypes.Transfer) -> ()) : () {
+        public func onReceive(fn:(TxTypes.Received) -> ()) : () {
             assert(Option.isNull(callback_onReceive));
             callback_onReceive := ?fn;
         };
 
         /// Called when a sent transaction is confirmed. Only one function can be set.
-        public func onSent(fn:(TxTypes.Transfer) -> ()) : () {
+        public func onSent(fn:(TxTypes.Sent) -> ()) : () {
             assert(Option.isNull(callback_onSent));
             callback_onSent := ?fn;
         };

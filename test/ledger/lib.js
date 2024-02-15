@@ -17,3 +17,12 @@ export function loadCanister(name) {
   } catch (e) {}
   return j[name];
 }
+
+
+export function dfxCanister(name) {
+  let j = {};
+  try {
+    j = JSON.parse(fs.readFileSync("../../.dfx/local/canister_ids.json"));
+  } catch (e) {}
+  return j[name]?.local;
+}

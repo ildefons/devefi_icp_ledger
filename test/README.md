@@ -1,8 +1,7 @@
 # Testing
 
-Note: canister_ids are hardcoded so the exact sequence should be used
 
-Note: If the ledger wasm is too old use get_latest_wasm.js (Latest SNSW ledger).
+Note: If the ledger wasm is too old use get_latest_ledger.sh
 
 1) Start DFX
 ```

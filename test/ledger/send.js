@@ -1,7 +1,7 @@
 import fs from "fs";
 import icblast, { hashIdentity, toState, initArg } from "@infu/icblast";
 import { init } from "./ledger.idl.js";
-import { saveCanister, loadCanister } from "./lib.js";
+import { saveCanister, loadCanister, dfxCanister } from "./lib.js";
 
 let localIdentity = hashIdentity("mylocalidentity");
 
@@ -21,7 +21,9 @@ let ledger = await local(canister_id);
 let balance = await ledger.icrc1_balance_of({owner:me})
 console.log(`Balance: ${balance}`)
 
-let to_canister = "bd3sg-teaaa-aaaaa-qaaba-cai"; // The canister in dfx.json
+let to_canister = dfxCanister("test"); // The canister in dfx.json
+
+console.log({to_canister})
 let testers = 10000;
 let fee = 10000;
 let tx_per_each = 6; // 10 transactions per each tester

@@ -36,26 +36,32 @@ actor class() = this {
     stable let lmem = L.LMem();
     let ledger = L.Ledger(lmem, "bnz7o-iuaaa-aaaaa-qaaaa-cai", #last);
     
-    ledger.onMint(func (t) {
-       // if sent mint transaction to this canister
-       // we will split into 10,000 subaccounts
-        var i = 0;
-        label sending loop {
-            let amount = Int.abs(Float.toInt( Float.fromInt(t.amount) * 0.00005 )); // each acount gets 1/10000 of the amount
-            ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(Nat64.fromNat(i))}; amount; from_subaccount = t.to.subaccount; });
-            i += 1;
-            if (i >= 10_000) break sending;
-        }
-    });
 
     let dust = 10000; // leave dust to try the balance of function
 
+    ledger.onMint(func (t) {
+        // if sent mint transaction to this canister
+        // we will split into 10,000 subaccounts
+        var i = 0;
+        label sending loop {
+            let amount = t.amount / 20000; // each acount gets 1/10000 of the amount
+            Debug.print(debug_show({amount}));
+            ledger.registerSubaccount(test_subaccount(Nat64.fromNat(i)));
+            ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(Nat64.fromNat(i))}; amount; from_subaccount = t.to_subaccount; });
+            i += 1;
+            if (i >= 10_000) break sending;
+        };
+        return;
+    });
+
     ledger.onReceive(func (t) {
+
         // if it has subaccount
         // we will pass it to another subaccount
         // until there is nothing to pass left the amount recieved is 0
         if (t.amount < fee + dust) return;
-        ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(next_subaccount_id)}; amount = t.amount - dust; from_subaccount = t.to.subaccount; });
+        ledger.registerSubaccount(test_subaccount(next_subaccount_id));
+        ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(next_subaccount_id)}; amount = t.amount - dust; from_subaccount = t.to_subaccount; });
         next_subaccount_id += 1;
     });
     
@@ -87,8 +93,11 @@ actor class() = this {
         ledger.getSender().getPendingCount();
         };
     
-     public query func ver() : async Nat {
+    public query func ver() : async Nat {
         4
         };
     
+    public query func my_account() : async Blob {
+        Principal.toLedgerAccount(Principal.fromActor(this), null);
+    }
 }

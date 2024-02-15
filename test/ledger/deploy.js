@@ -1,8 +1,10 @@
 import fs from "fs";
 import icblast, { hashIdentity, toState, initArg } from "@infu/icblast";
+
 import { init } from "./ledger.idl.js";
 import { saveCanister, loadCanister } from "./lib.js";
-
+import { AccountIdentifier } from "@dfinity/ledger-icp";
+import { Principal } from "@dfinity/principal";
 let localIdentity = hashIdentity("mylocalidentity");
 
 let me = localIdentity.getPrincipal();
@@ -33,27 +35,28 @@ if (!canister_id) {
 
 console.log(toState({ canister_id }));
 
+
+
+
+let me_address = AccountIdentifier.fromPrincipal({
+  principal: me,
+  // subAccount: null,
+}).toHex();
+
+console.log(me_address);
+
 let ledger_args = {
   Init: {
-    minting_account: {
-      owner: me,
-    },
-    fee_collector_account: { owner: me },
-    transfer_fee: 10000,
-    decimals: 8,
+    minting_account: me_address,
+    transfer_fee: {e8s:10000},
+    send_whitelist: [],
     token_symbol: "tCOIN",
     token_name: "Test Coin",
-    metadata: [],
-    initial_balances: [[{ owner: me }, 100000000000]],
-    archive_options: {
-      num_blocks_to_archive: 10000,
-      trigger_threshold: 9000,
-      controller_id: me,
-    },
+    initial_values : []
   },
 };
 
-let wasm = fs.readFileSync("./ledger_canister.wasm");
+let wasm = fs.readFileSync("./ledger-canister.wasm");
 
 await aa.install_code({
   arg: initArg(init, [ledger_args]),
@@ -62,4 +65,10 @@ await aa.install_code({
   canister_id,
 });
 
+
+
 console.log("DONE")
+
+
+let ledger = await local(canister_id);
+await ledger.icrc1_transfer({to:{owner:"aaaaa-aa"}, amount:1000000}).then(console.log); // making one transfer so there are not 0 in log, which usually never happens

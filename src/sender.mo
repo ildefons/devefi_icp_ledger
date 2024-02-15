@@ -162,10 +162,10 @@ module {
             let confirmations = Vector.new<Nat64>();
             label tloop for (tx in txs.vals()) {
                 let imp = switch(tx) {
-                    case (#transfer(t)) {
+                    case (#u_transfer(t)) {
                         {from=t.from; memo=t.memo};
                     };
-                    case (#burn(b)) {
+                    case (#u_burn(b)) {
                         {from=b.from; memo=b.memo};
                     };
                     case (_) continue tloop;
