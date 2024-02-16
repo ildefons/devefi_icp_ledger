@@ -38,6 +38,13 @@ module {
         known_accounts : BTree.BTree<Blob, Blob>; // account id to subaccount
     };
 
+    public type Meta = {
+        symbol: Text;
+        decimals: Nat8;
+        fee: Nat;
+        minter: ICPLedger.Account;
+    };
+
     /// Used to create new ledger memory (it's outside of the class to be able to place it in stable memory)
     public func LMem() : Mem {
         {
@@ -288,6 +295,18 @@ module {
             Iter.map<(Blob, AccountMem), (Blob, Nat)>(Map.entries<Blob, AccountMem>(lmem.accounts), func((k, v)) {
                 (k, v.balance - v.in_transit)
             });
+        };
+
+        let minter = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+
+        /// Returns the meta of the ICP ledger
+        public func getMeta() : Meta {
+            {
+                decimals = 8;
+                symbol = "ICP";
+                fee = icrc_sender.getFee();
+                minter = { owner=minter; subaccount = null}
+            }
         };
 
         /// Returns the fee for sending a transaction

@@ -161,7 +161,7 @@ module {
 
             let confirmations = Vector.new<Nat64>();
             label tloop for (tx in txs.vals()) {
-                let imp = switch(tx) {
+                let imp = switch(tx) { // Our canister realistically will never be the ICP minter
                     case (#u_transfer(t)) {
                         {from=t.from; memo=t.memo};
                     };
