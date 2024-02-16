@@ -36,6 +36,7 @@ module {
         accounts: Map.Map<Blob, AccountMem>;
         var actor_principal : ?Principal;
         known_accounts : BTree.BTree<Blob, Blob>; // account id to subaccount
+        var fee : Nat;
     };
 
     public type Meta = {
@@ -53,7 +54,7 @@ module {
             accounts = Map.new<Blob, AccountMem>();
             var actor_principal = null;
             known_accounts = BTree.init<Blob, Blob>(?16);
-
+            var fee = 10000;
         }
     };
 
@@ -116,6 +117,7 @@ module {
         let icrc_sender = IcpSender.Sender({
             ledger_id;
             mem = lmem.sender;
+            getFee = func () : Nat { lmem.fee };
             onError = logErr; // In case a cycle throws an error
             onConfirmations = func (confirmations: [Nat64]) {
                 // handle confirmed ids after sender - not needed for now
@@ -174,7 +176,7 @@ module {
             onRead = func (transactions: [TxTypes.Transaction]) {
                 icrc_sender.confirm(transactions);
                 
-                let fee = icrc_sender.getFee();
+                let fee = lmem.fee;
                 let ?me = lmem.actor_principal else return;
                 label txloop for (tx in transactions.vals()) {
                     switch(tx) {
@@ -219,6 +221,12 @@ module {
 
         icrc_sender.setGetReaderLastTxTime(icrc_reader.getReaderLastTxTime);
 
+        private func refreshFee() : async () {
+            try {
+            let ledger = actor (Principal.toText(ledger_id)) : ICPLedger.Self;
+            lmem.fee := await ledger.icrc1_fee();
+            } catch (e) {}
+        };
  
         /// The ICP ledger doesn't know all of its subaccount addresses
         /// This why we need to register them, so it can track balances and transactions
@@ -237,7 +245,9 @@ module {
         // will loop until the actor_principal is set
         private func delayed_start() : async () {
           if (not Option.isNull(lmem.actor_principal)) {
+            await refreshFee();
             realStart();
+            ignore Timer.recurringTimer(#seconds 3600, refreshFee); // every hour
           } else {
             ignore Timer.setTimer(#seconds 3, delayed_start);
           }
@@ -257,6 +267,7 @@ module {
             started := true;
             icrc_sender.start(?me); // We can't call start from the constructor because this is not defined yet
             icrc_reader.start();
+            
         };
 
 
@@ -301,17 +312,17 @@ module {
 
         /// Returns the meta of the ICP ledger
         public func getMeta() : Meta {
-            {
-                decimals = 8;
+            { // These won't ever change for ICP except fee
+                decimals = 8; 
                 symbol = "ICP";
-                fee = icrc_sender.getFee();
+                fee = lmem.fee;
                 minter = { owner=minter; subaccount = null}
             }
         };
 
         /// Returns the fee for sending a transaction
         public func getFee() : Nat {
-            icrc_sender.getFee();
+            lmem.fee;
         };
 
         /// Returns the ledger sender class

@@ -75,34 +75,30 @@ module {
         ledger_id: Principal;
         onError: (Text) -> ();
         onConfirmations : ([Nat64]) -> ();
-        
+        getFee : () -> Nat;
         onCycleEnd : (Nat64) -> (); // Measure performance of following and processing transactions. Returns instruction count
     }) {
         var started = false;
         let ledger = actor(Principal.toText(ledger_id)) : Ledger.Oneway;
         let ledger_cb = actor(Principal.toText(ledger_id)) : Ledger.Self;
         var getReaderLastTxTime : ?(() -> (Nat64)) = null;
-        var stored_fee:?Nat = null;
 
         let blobMin = "\00" : Blob;
         let blobMax = "\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF\FF" : Blob;
 
-        var cycle_idx = 0;
 
         public func setGetReaderLastTxTime(fn : () -> (Nat64)) {
             getReaderLastTxTime := ?fn;
         };
 
+
         private func cycle() : async () {
             let ?owner = mem.stored_owner else return;
             if (not started) return;
-            cycle_idx += 1;
+
             let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
 
-            if (Option.isNull(stored_fee) or (cycle_idx % 600 == 0)) { // We could also use last observed by reader fee, but I am not sure that's part of the spec (perhaps someone is allowed to pay higher than the minimum fee)
-                stored_fee := ?(await ledger_cb.icrc1_fee());
-                };
-            let ?fee = stored_fee else Debug.trap("Fee not available");
+            let fee = getFee();
 
             let now = Int.abs(Time.now());
             let nowU64 = Nat64.fromNat(now);
@@ -179,11 +175,6 @@ module {
                 Vector.add<Nat64>(confirmations, id);
             };
             onConfirmations(Vector.toArray(confirmations));
-        };
-
-        public func getFee() : Nat {
-            let ?fee = stored_fee else Debug.trap("Fee not available");
-            return fee;
         };
 
         private func txIdBlob(address:Blob, id:Nat64) : Blob {
