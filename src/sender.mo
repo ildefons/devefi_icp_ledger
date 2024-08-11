@@ -145,7 +145,7 @@ module {
     
             };
     
-            ignore Timer.setTimer(#seconds 2, cycle);
+            ignore Timer.setTimer<system>(#seconds 2, cycle);
             let inst_end = Prim.performanceCounter(1);
             onCycleEnd(inst_end - inst_start);
         };
@@ -200,13 +200,13 @@ module {
             ignore BTree.insert<Blob, Transaction>(mem.transactions, Blob.compare, txIdBlob(account, id), txr);
         };
 
-        public func start(owner:?Principal) {
+        public func start<system>(owner:?Principal) {
             if (not Option.isNull(owner)) mem.stored_owner := owner;
             if (Option.isNull(mem.stored_owner)) return;
 
             if (started) Debug.trap("already started");
             started := true;
-            ignore Timer.setTimer(#seconds 2, cycle);
+            ignore Timer.setTimer<system>(#seconds 2, cycle);
         };
 
         public func stop() {

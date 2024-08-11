@@ -65,7 +65,7 @@ actor class() = this {
         next_subaccount_id += 1;
     });
     
-    ledger.start();
+    ledger.start<system>();
     //---
 
     public func start() {

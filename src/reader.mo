@@ -156,13 +156,13 @@ module {
                 onError("cycle:" # Principal.toText(ledger_id) # ":" # Error.message(e));
             };
 
-            if (started) ignore Timer.setTimer(#seconds 2, cycle_shell);
+            if (started) ignore Timer.setTimer<system>(#seconds 2, cycle_shell);
         };
 
-        public func start() {
+        public func start<system>() {
             if (started) Debug.trap("already started");
             started := true;
-            ignore Timer.setTimer(#seconds 2, cycle_shell);
+            ignore Timer.setTimer<system>(#seconds 2, cycle_shell);
         };
 
         public func stop() {

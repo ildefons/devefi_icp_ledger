@@ -248,30 +248,30 @@ module {
         
 
         // will loop until the actor_principal is set
-        private func delayed_start() : async () {
+        private func delayed_start<system>() : async () {
           if (not Option.isNull(lmem.actor_principal)) {
             await refreshFee();
-            realStart();
-            ignore Timer.recurringTimer(#seconds 3600, refreshFee); // every hour
+            realStart<system>();
+            ignore Timer.recurringTimer<system>(#seconds 3600, refreshFee); // every hour
           } else {
-            ignore Timer.setTimer(#seconds 3, delayed_start);
+            ignore Timer.setTimer<system>(#seconds 3, delayed_start);
           }
         };
 
         /// Start the ledger timers
-        public func start() : () {
-            ignore Timer.setTimer(#seconds 0, delayed_start);
+        public func start<system>() : () {
+            ignore Timer.setTimer<system>(#seconds 0, delayed_start);
         };
  
         /// Really starts the ledger and the whole system
-        private func realStart() {
+        private func realStart<system>() {
             let ?me = lmem.actor_principal else Debug.trap("no actor principal");
             Debug.print(debug_show(me));
             registerSubaccount(null);
             if (started) Debug.trap("already started");
             started := true;
-            icrc_sender.start(?me); // We can't call start from the constructor because this is not defined yet
-            icrc_reader.start();
+            icrc_sender.start<system>(?me); // We can't call start from the constructor because this is not defined yet
+            icrc_reader.start<system>();
             
         };
 
