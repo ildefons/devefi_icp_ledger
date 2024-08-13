@@ -38,7 +38,7 @@ module {
     controller_id : Principal;
   };
   public type ArchivedBlocksRange = {
-    callback : shared query GetBlocksArgs -> async Result_3;
+    callback : shared query GetBlocksArgs -> async ArchiveResult;
     start : Nat64;
     length : Nat64;
   };
@@ -136,7 +136,7 @@ module {
   public type Result = { #Ok : Nat; #Err : TransferError };
   public type Result_1 = { #Ok : Nat; #Err : ApproveError };
   public type Result_2 = { #Ok : Nat; #Err : TransferFromError };
-  public type Result_3 = { #Ok : BlockRange; #Err : GetBlocksError };
+  public type ArchiveResult = { #Ok : BlockRange; #Err : GetBlocksError };
   public type Result_4 = { #Ok : [Blob]; #Err : GetBlocksError };
   public type Result_5 = { #Ok : Nat64; #Err : TransferError_1 };
   public type SendArgs = {
