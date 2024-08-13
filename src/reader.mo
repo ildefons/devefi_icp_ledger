@@ -65,14 +65,14 @@ module {
         start_from_block: {#id:Nat; #last};
         onError : (Text) -> (); // If error occurs during following and processing it will return the error
         onCycleEnd : (Nat64) -> (); // Measure performance of following and processing transactions. Returns instruction count
-        onRead : [TxTypes.Transaction] -> ();
+        onRead : ([TxTypes.Transaction], Nat) -> ();
     }) {
         var started = false;
         let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
         var lastTxTime : Nat64 = 0;
 
-        private func cycle() : async () {
-            if (not started) return;
+        private func cycle() : async Bool {
+            if (not started) return false;
             let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
 
             if (mem.last_indexed_tx == 0) {
@@ -94,10 +94,11 @@ module {
                 start = Nat64.fromNat(mem.last_indexed_tx);
                 length = 1000;
             });
+            let quick_cycle:Bool = if (Nat64.toNat(rez.chain_length) > mem.last_indexed_tx + 1000) true else false;
 
             if (rez.archived_blocks.size() == 0) {
                 // We can just process the transactions that are inside the ledger and not inside archive
-                onRead(transformTransactions(rez.blocks));
+                onRead(transformTransactions(rez.blocks), mem.last_indexed_tx );
                 mem.last_indexed_tx += rez.blocks.size();
                 if (rez.blocks.size() < 1000) {
                     // We have reached the end, set the last tx time to the current time
@@ -114,7 +115,7 @@ module {
                     let #Ok(txresp) = await atx.callback({
                         start = atx.start;
                         length = atx.length;
-                    }) else return;
+                    }) else return false;
 
                     Vector.add(
                         unordered,
@@ -129,18 +130,20 @@ module {
 
                 for (u in sorted.vals()) {
                     assert (u.start == mem.last_indexed_tx);
-                    onRead(transformTransactions(u.transactions));
+                    onRead(transformTransactions(u.transactions), mem.last_indexed_tx );
                     mem.last_indexed_tx += u.transactions.size();
                 };
 
                 if (rez.blocks.size() != 0) {
-                    onRead(transformTransactions(rez.blocks));
+                    onRead(transformTransactions(rez.blocks), mem.last_indexed_tx );
                     mem.last_indexed_tx += rez.blocks.size();
                 };
             };
 
             let inst_end = Prim.performanceCounter(1); // 1 is preserving with async
             onCycleEnd(inst_end - inst_start);
+
+            quick_cycle;
         };
 
         /// Returns the last tx time or the current time if there are no more transactions to read
@@ -149,14 +152,15 @@ module {
         };
 
         private func cycle_shell() : async () {
+               var quick = false;
             try {
                 // We need it async or it won't throw errors
-                await cycle();
+                quick := await cycle();
             } catch (e) {
                 onError("cycle:" # Principal.toText(ledger_id) # ":" # Error.message(e));
             };
 
-            if (started) ignore Timer.setTimer<system>(#seconds 2, cycle_shell);
+            if (started) ignore Timer.setTimer<system>(#seconds(if (quick) 0 else 2), cycle_shell);
         };
 
         public func start<system>() {
