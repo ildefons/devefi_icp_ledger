@@ -22,8 +22,7 @@ import Iter "mo:base/Iter";
 
 module {
 
-    let RETRY_EVERY_SEC:Float = 120;
-    let MAX_SENT_EACH_CYCLE:Nat = 125;
+
 
     public type TransactionInput = {
         amount: Nat;
@@ -51,6 +50,8 @@ module {
             var stored_owner = null;
         };
     };
+    let RETRY_EVERY_SEC:Float = 120_000_000_000;
+    let MAX_SENT_EACH_CYCLE:Nat = 125;
 
     let permittedDriftNanos : Nat64 = 60_000_000_000;
     let transactionWindowNanos : Nat64 = 86400_000_000_000;
@@ -135,7 +136,7 @@ module {
                         fee = ?fee;
                     });
                     sent_count += 1;
-                    tx.tries += 1;
+                    tx.tries := Int.abs(time_for_try);
                 } catch (e) { 
                     onError("sender:" # Error.message(e));
                     break vtransactions;
@@ -145,12 +146,18 @@ module {
     
             };
     
-            ignore Timer.setTimer<system>(#seconds 2, cycle);
             let inst_end = Prim.performanceCounter(1);
             onCycleEnd(inst_end - inst_start);
         };
 
-
+        private func cycle_shell<system>() : async () {
+            try {
+                await cycle<system>();
+            } catch (e) {
+                onError("sender_shell:" # Error.message(e));
+            };
+            ignore Timer.setTimer<system>(#seconds 2, cycle_shell);
+        };
 
         public func confirm(txs: [TxTypes.Transaction]) {
             let ?owner = mem.stored_owner else return;
@@ -206,7 +213,7 @@ module {
 
             if (started) Debug.trap("already started");
             started := true;
-            ignore Timer.setTimer<system>(#seconds 2, cycle);
+            ignore Timer.setTimer<system>(#seconds 2, cycle_shell);
         };
 
         public func stop() {
