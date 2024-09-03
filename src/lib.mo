@@ -241,6 +241,11 @@ module {
             ignore BTree.insert<Blob, Blob>(lmem.known_accounts, Blob.compare, Principal.toLedgerAccount(me, subaccount), subaccountToBlob(subaccount));
         };
 
+        public func unregisterSubaccount(subaccount: ?Blob) : () {
+            let ?me = lmem.actor_principal else Debug.trap("no actor principal");
+            ignore BTree.delete<Blob, Blob>(lmem.known_accounts, Blob.compare, Principal.toLedgerAccount(me, subaccount));
+        };
+
         /// Set the actor principal. If `start` has been called before, it will really start the ledger.
         public func setOwner(me: Principal) : () {
             lmem.actor_principal := ?me;
