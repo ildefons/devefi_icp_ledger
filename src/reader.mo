@@ -72,9 +72,16 @@ module {
         let ledger = actor (Principal.toText(ledger_id)) : Ledger.Self;
         var lastTxTime : Nat64 = 0;
 
+        var lock:Int = 0;
+        let MAX_TIME_LOCKED:Int = 120_000_000_000; // 120 seconds
 
-        private func cycle() : async Bool {
-            if (not started) return false;
+        private func cycle() : async () {
+            if (not started) return;
+
+            let now = Time.now();
+            if (now - lock < MAX_TIME_LOCKED) return;
+            lock := now;
+
             let inst_start = Prim.performanceCounter(1); // 1 is preserving with async
 
             if (mem.last_indexed_tx == 0) {
@@ -92,11 +99,15 @@ module {
                 };
             };
 
+            let query_start = mem.last_indexed_tx;
+
             let rez = await ledger.query_blocks({
                 start = Nat64.fromNat(mem.last_indexed_tx);
                 length = 2000*40; // later we run up to 40 queries in parallel 
             });
-            let quick_cycle:Bool = if (Nat64.toNat(rez.chain_length) > mem.last_indexed_tx + 1000) true else false;
+
+            if (query_start != mem.last_indexed_tx) {lock:=0; return;};
+
 
             if (rez.archived_blocks.size() == 0) {
                 // We can just process the transactions that are inside the ledger and not inside archive
@@ -115,8 +126,6 @@ module {
                     let args_starts = Array.tabulate<Nat>(Nat.min(40, 1 + Nat64.toNat(atx.length/2000)), func(i) = Nat64.toNat(atx.start) + i*2000);
                     let args = Array.map<Nat, Ledger.GetBlocksArgs>( args_starts, func(i) = {start = Nat64.fromNat(i); length = if (i-Nat64.toNat(atx.start):Nat+2000 <= Nat64.toNat(atx.length)) 2000 else atx.length + atx.start - Nat64.fromNat(i)  });
 
-                    // onError("args_starts: " # debug_show(args));
-
                     var buf = List.nil<async Ledger.ArchiveResult>();
                     var data = List.nil<Ledger.ArchiveResult>();
                     for (arg in args.vals()) {
@@ -133,7 +142,11 @@ module {
                     
                     var chunk_idx = 0;
                     for (chunk in chunks.vals()) {
-                        let #Ok(txresp) = chunk else return Debug.trap("Error getting archived blocks");
+                        let #Ok(txresp) = chunk else {
+                            lock := 0;
+                            onError("Error getting archived blocks");
+                            return;
+                        };
                         if (txresp.blocks.size() > 0) {
                             Vector.add(
                                 unordered,
@@ -152,7 +165,8 @@ module {
                 for (u in sorted.vals()) {
                     if (u.start != mem.last_indexed_tx) {
                         onError("out of order: " # Nat.toText(u.start) # " " # Nat.toText(mem.last_indexed_tx) # " " # Nat.toText(u.transactions.size()));
-                        return false;
+                        lock := 0;
+                        return;
                     };
                     onRead(transformTransactions(u.transactions), mem.last_indexed_tx );
                     mem.last_indexed_tx += u.transactions.size();
@@ -163,14 +177,12 @@ module {
                     onRead(transformTransactions(rez.blocks), mem.last_indexed_tx );
                     mem.last_indexed_tx += rez.blocks.size();
                     lastTxTime := rez.blocks[rez.blocks.size() - 1].timestamp.timestamp_nanos;
-
                 };
             };
 
             let inst_end = Prim.performanceCounter(1); // 1 is preserving with async
             onCycleEnd(inst_end - inst_start);
-
-            quick_cycle;
+            lock := 0;
         };
 
         /// Returns the last tx time or the current time if there are no more transactions to read
@@ -178,22 +190,11 @@ module {
             lastTxTime;
         };
 
-        private func cycle_shell() : async () {
-               var quick = false;
-            try {
-                // We need it async or it won't throw errors
-                quick := await cycle();
-            } catch (e) {
-                onError("cycle:" # Principal.toText(ledger_id) # ":" # Error.message(e));
-            };
-
-            if (started) ignore Timer.setTimer<system>(#seconds(if (quick) 0 else 2), cycle_shell);
-        };
-
+    
         public func start<system>() {
             if (started) Debug.trap("already started");
             started := true;
-            ignore Timer.setTimer<system>(#seconds 2, cycle_shell);
+            ignore Timer.recurringTimer<system>(#seconds 2, cycle);
         };
 
         public func stop() {

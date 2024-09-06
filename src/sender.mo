@@ -150,14 +150,6 @@ module {
             onCycleEnd(inst_end - inst_start);
         };
 
-        private func cycle_shell<system>() : async () {
-            try {
-                await cycle<system>();
-            } catch (e) {
-                onError("sender_shell:" # Error.message(e));
-            };
-            ignore Timer.setTimer<system>(#seconds 2, cycle_shell);
-        };
 
         public func confirm(txs: [TxTypes.Transaction]) {
             let ?owner = mem.stored_owner else return;
@@ -213,7 +205,7 @@ module {
 
             if (started) Debug.trap("already started");
             started := true;
-            ignore Timer.setTimer<system>(#seconds 2, cycle_shell);
+            ignore Timer.recurringTimer<system>(#seconds 2, cycle);
         };
 
         public func stop() {
