@@ -19,6 +19,7 @@ import Nat8 "mo:base/Nat8";
 import TxTypes "./txtypes";
 import IT "mo:itertools/Iter";
 import Iter "mo:base/Iter";
+import Set "mo:map/Set";
 
 module {
 
@@ -41,12 +42,14 @@ module {
 
     public type Mem = {
         transactions : BTree.BTree<Blob, Transaction>;
+        transaction_ids : Set.Set<Nat64>;
         var stored_owner : ?Principal;
     };
 
     public func Mem() : Mem {
         return {
             transactions = BTree.init<Blob, Transaction>(?16);
+            transaction_ids = Set.new<Nat64>();
             var stored_owner = null;
         };
     };
@@ -108,7 +111,7 @@ module {
             let ?gr_fn = getReaderLastTxTime else Debug.trap("Err getReaderLastTxTime not set");
             let lastReaderTxTime = gr_fn();  // This is the last time the reader has seen a transaction or the current time if there are no more transactions
 
-            if (lastReaderTxTime < nowU64 - maxReaderLag) {
+            if (lastReaderTxTime != 0 and lastReaderTxTime < nowU64 - maxReaderLag) {
                 onError("Reader is lagging behind by " # Nat64.toText(nowU64 - lastReaderTxTime));
                 return; // Don't attempt to send transactions if the reader is lagging too far behind
             };
@@ -118,6 +121,7 @@ module {
                 
                 if (tx.amount < fee) {
                     ignore BTree.delete<Blob, Transaction>(mem.transactions, Blob.compare, id);
+                    ignore do ? { Set.delete(mem.transaction_ids, Set.n64hash, txBlobToId(id)!); };
                     continue vtransactions;
                 };
 
@@ -173,13 +177,18 @@ module {
                 let ?id = DNat64(Blob.toArray(memo)) else continue tloop;
                 
                 ignore BTree.delete<Blob, Transaction>(mem.transactions, Blob.compare, txIdBlob(imp.from, id));
+                Set.delete(mem.transaction_ids, Set.n64hash, id);
                 Vector.add<Nat64>(confirmations, id);
             };
             onConfirmations(Vector.toArray(confirmations));
         };
 
-        private func txIdBlob(address:Blob, id:Nat64) : Blob {
+        private func txIdBlob(address:Blob, id:Nat64) : Blob { // address is 32 bytes always
             return Blob.fromArray(Iter.toArray(IT.flattenArray<Nat8>([Blob.toArray(address), ENat64(id)])));
+        };
+
+        private func txBlobToId(blob:Blob) : ?Nat64 {
+            DNat64(Array.subArray(Blob.toArray(blob), 32, 8));
         };
 
         public func getPendingCount() : Nat {
@@ -199,6 +208,7 @@ module {
             
             let account = Principal.toLedgerAccount(owner, tx.from_subaccount);
             ignore BTree.insert<Blob, Transaction>(mem.transactions, Blob.compare, txIdBlob(account, id), txr);
+            ignore Set.put(mem.transaction_ids, Set.n64hash, id);
         };
 
         public func start<system>(owner:?Principal) {
@@ -208,6 +218,10 @@ module {
             if (started) Debug.trap("already started");
             started := true;
             ignore Timer.recurringTimer<system>(#seconds 2, cycle);
+        };
+
+        public func isSent(id:Nat64) : Bool {
+            Set.has(mem.transaction_ids, Set.n64hash, id);
         };
 
         public func stop() {

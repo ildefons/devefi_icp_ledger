@@ -9,6 +9,7 @@ import Blob "mo:base/Blob";
 import Result "mo:base/Result";
 import Option "mo:base/Option";
 import ICPLedger "./icp_ledger";
+import ICRCLedger "./icrc_ledger";
 import TxTypes "./txtypes";
 import Debug "mo:base/Debug";
 import SWB "mo:swb";
@@ -21,7 +22,7 @@ module {
 
     /// No other errors are currently possible
     public type SendError = {
-        #InsuficientFunds;
+        #InsufficientFunds;
     };
 
     /// Local account memory
@@ -37,6 +38,7 @@ module {
         var actor_principal : ?Principal;
         known_accounts : BTree.BTree<Blob, Blob>; // account id to subaccount
         var fee : Nat;
+        var next_tx_id : Nat64;
     };
 
     public type Meta = {
@@ -55,10 +57,11 @@ module {
             var actor_principal = null;
             known_accounts = BTree.init<Blob, Blob>(?16);
             var fee = 10000;
+            var next_tx_id = 0;
         }
     };
 
-    private func subaccountToBlob(s: ?Blob) : Blob {
+    public func subaccountToBlob(s: ?Blob) : Blob {
         let ?a = s else return Blob.fromArray([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]);
         a;
     };
@@ -76,7 +79,21 @@ module {
         lastTxTime: Nat64;
     };
 
+    public type AccountMixed = {
+        #icrc:ICRCLedger.Account;
+        #icp:Blob;
+    };
 
+    public type Transfer = {
+        to : ICRCLedger.Account;
+        fee : ?Nat;
+        from : AccountMixed;
+        memo : ?Blob;
+        created_at_time : ?Nat64;
+        amount : Nat;
+        spender : ?AccountMixed;
+    };
+    
     /// The ledger class
     /// start_from_block should be in most cases #last (starts from the last block when first started)
     /// if something went wrong and you need to reinstall the canister
@@ -93,17 +110,15 @@ module {
     public class Ledger<system>(lmem: Mem, ledger_id_txt: Text, start_from_block : ({#id:Nat; #last})) {
 
         let ledger_id = Principal.fromText(ledger_id_txt);
-        var next_tx_id : Nat64 = 0;
+        let minter = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+
         let errors = SWB.SlidingWindowBuffer<Text>();
 
         var sender_instructions_cost : Nat64 = 0;
         var reader_instructions_cost : Nat64 = 0;
 
-        var callback_onReceive: ?((TxTypes.Received) -> ()) = null;
-        var callback_onSent: ?((TxTypes.Sent) -> ()) = null;
-        var callback_onMint: ?((TxTypes.Mint) -> ()) = null;
-        var callback_onBurn: ?((TxTypes.Burn) -> ()) = null;
-        var callback_onBalanceChange : ?((?Blob, Nat, Nat) -> ()) = null;
+        var callback_onReceive: ?((Transfer) -> ()) = null;
+        var callback_onSent : ?((Nat64) -> ()) = null;
         // Sender 
 
         var started : Bool = false;
@@ -115,13 +130,22 @@ module {
             };
         };
 
+        /// Called back with the id of the confirmed transaction. The id returned from the send function. Only one function can be set.
+        public func onSent(fn : (Nat64) -> ()) : () {
+            assert (Option.isNull(callback_onSent));
+            callback_onSent := ?fn;
+        };
+
         let icrc_sender = IcpSender.Sender({
             ledger_id;
             mem = lmem.sender;
             getFee = func () : Nat { lmem.fee };
             onError = logErr; // In case a cycle throws an error
             onConfirmations = func (confirmations: [Nat64]) {
-                // handle confirmed ids after sender - not needed for now
+                // handle confirmed ids after sender 
+                for (id in confirmations.vals()) {
+                    ignore do ? { callback_onSent!(id) };
+                };
             };
             onCycleEnd = func (i: Nat64) { sender_instructions_cost := i }; // used to measure how much instructions it takes to send transactions in one cycle
         });
@@ -130,14 +154,12 @@ module {
             switch(Map.get<Blob, AccountMem>(lmem.accounts, Map.bhash, subaccountToBlob(subaccount))) {
                 case (?acc) {
                     acc.balance += amount:Nat;
-                    ignore do ? { callback_onBalanceChange!(subaccount, acc.balance, acc.in_transit); }
                 };
                 case (null) {
                     Map.set(lmem.accounts, Map.bhash, subaccountToBlob(subaccount), {
                         var balance = amount;
                         var in_transit = 0;
                     });
-                    ignore do ? { callback_onBalanceChange!(subaccount, amount, 0); }
                 };
             };
         };
@@ -160,7 +182,6 @@ module {
                 ignore Map.remove<Blob, AccountMem>(lmem.accounts, Map.bhash, subaccountToBlob(subaccount));
             };
 
-            ignore do ? { callback_onBalanceChange!(subaccount, acc.balance, acc.in_transit); }
         };
 
         let nullSubaccount:Blob = subaccountToBlob(null);
@@ -188,7 +209,21 @@ module {
                         case (#u_mint(mint)) {
                             let ?subaccount = BTree.get(lmem.known_accounts, Blob.compare, mint.to) else continue txloop;
                             handle_incoming_amount(?subaccount, mint.amount);
-                            ignore do ? { callback_onMint!({mint with to_subaccount = formatSubaccount(subaccount)}); };
+                            ignore do ? { callback_onReceive!({
+                                from = #icrc({
+                                    owner = minter;
+                                    subaccount = null;
+                                });
+                                to = {
+                                    owner = me;
+                                    subaccount = formatSubaccount(subaccount);
+                                };
+                                amount = mint.amount;
+                                created_at_time = ?mint.created_at_time;
+                                fee = null;
+                                memo = mint.memo;
+                                spender = null;
+                                }); };
                         };
 
                         case (#u_transfer(tr)) {
@@ -196,7 +231,24 @@ module {
                                 case (?subaccount) {
                                     if (tr.amount >= fee) { // ignore it since we can't even burn that
                                     handle_incoming_amount(?subaccount, tr.amount);
-                                    ignore do ? { callback_onReceive!({tr with to_subaccount = formatSubaccount(subaccount)}); };
+                                    let from_subaccount = BTree.get(lmem.known_accounts, Blob.compare, tr.from) else continue txloop;
+
+                                    ignore do ? { callback_onReceive!({
+                                        from = switch(from_subaccount) {
+                                            case (?sa) #icrc({owner = me; subaccount = formatSubaccount(sa)});
+                                            case (null) #icp(tr.from);
+                                        };
+                                        amount = tr.amount;
+                                        to = {
+                                            owner = me;
+                                            subaccount = formatSubaccount(subaccount);
+                                        };
+                                        created_at_time = ?tr.created_at_time;
+                                        fee = ?fee;
+                                        memo = tr.memo;
+                                        spender = do ? {#icp( tr.spender! )};
+                                        });
+                                        };
                                     }
                                 };
                                 case (null) ();
@@ -205,7 +257,6 @@ module {
                             switch(BTree.get(lmem.known_accounts, Blob.compare, tr.from)) {
                                 case (?subaccount) {
                                     handle_outgoing_amount(?subaccount, tr.amount + fee);
-                                    ignore do ? { callback_onSent!({tr with from_subaccount = formatSubaccount(subaccount)}); };
                                 };
                                 case (null) ();
                             };
@@ -214,7 +265,6 @@ module {
                         case (#u_burn(burn)) {
                             let ?subaccount = BTree.get(lmem.known_accounts, Blob.compare, burn.from) else continue txloop;
                             handle_outgoing_amount(?subaccount, burn.amount + fee);
-                            ignore do ? { callback_onBurn!({burn with from_subaccount = formatSubaccount(subaccount)}); };
                         };
 
                         case (_) continue txloop;
@@ -233,6 +283,17 @@ module {
             } catch (e) {}
         };
  
+        public func genNextSendId() : Nat64 {
+            let id = lmem.next_tx_id;
+            lmem.next_tx_id += 1;
+            id;
+        };
+
+        public func isSent(id : Nat64) : Bool {
+            if (id >= lmem.next_tx_id) return false;
+            icrc_sender.isSent(id);
+        };
+
         /// The ICP ledger doesn't know all of its subaccount addresses
         /// This why we need to register them, so it can track balances and transactions
         /// Any transactions to or from a subaccount before registering it will be ignored
@@ -301,7 +362,7 @@ module {
                 accounts = Map.size(lmem.accounts);
                 pending = icrc_sender.getPendingCount();
                 actor_principal = lmem.actor_principal;
-                sent = next_tx_id;
+                sent = lmem.next_tx_id;
                 reader_instructions_cost;
                 sender_instructions_cost;
                 errors = errors.len();
@@ -316,7 +377,6 @@ module {
             });
         };
 
-        let minter = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
 
         /// Returns the meta of the ICP ledger
         public func getMeta() : Meta {
@@ -347,11 +407,11 @@ module {
         /// It's added to a queue and will be sent as soon as possible.
         /// You can send tens of thousands of transactions in one update call. It just adds them to a BTree
         public func send(tr: IcpSender.TransactionInput) : R<Nat64, SendError> { // The amount we send includes the fee. meaning recepient will get the amount - fee
-            let ?acc = Map.get(lmem.accounts, Map.bhash, subaccountToBlob(tr.from_subaccount)) else return #err(#InsuficientFunds);
-            if (acc.balance:Nat - acc.in_transit:Nat < tr.amount) return #err(#InsuficientFunds);
+            let ?acc = Map.get(lmem.accounts, Map.bhash, subaccountToBlob(tr.from_subaccount)) else return #err(#InsufficientFunds);
+            if (acc.balance:Nat - acc.in_transit:Nat < tr.amount) return #err(#InsufficientFunds);
             acc.in_transit += tr.amount;
-            let id = next_tx_id;
-            next_tx_id += 1;
+            let id = lmem.next_tx_id;
+            lmem.next_tx_id += 1;
             icrc_sender.send(id, tr);
             #ok(id);
         };
@@ -371,37 +431,12 @@ module {
         };
 
         /// Called when a received transaction is confirmed. Only one function can be set. (except dust < fee)
-        public func onReceive(fn:(TxTypes.Received) -> ()) : () {
+        public func onReceive(fn:(Transfer) -> ()) : () {
             assert(Option.isNull(callback_onReceive));
             callback_onReceive := ?fn;
         };
 
-        /// Called when a sent transaction is confirmed. Only one function can be set.
-        public func onSent(fn:(TxTypes.Sent) -> ()) : () {
-            assert(Option.isNull(callback_onSent));
-            callback_onSent := ?fn;
-        };
-
-        /// Called when a mint transaction is received. Only one function can be set.
-        /// In the rare cases when the ledger minter is sending your canister funds you need to handle this.
-        /// The event won't show in onRecieve
-        public func onMint(fn:(TxTypes.Mint) -> ()) : () {
-            assert(Option.isNull(callback_onMint));
-            callback_onMint := ?fn;
-        };
-
-        /// Called when there is a change in the balance or in_transit of a subaccount. Only one function can be set.
-        /// callback input: Subaccount, balance, in_transit
-        public func onBalanceChange(fn:(?Blob, Nat, Nat) -> ()) : () {
-            assert(Option.isNull(callback_onBalanceChange));
-            callback_onBalanceChange := ?fn;
-        };
-
-        /// Called when a burn transaction is received. Only one function can be set.
-        public func onBurn(fn:(TxTypes.Burn) -> ()) : () {
-            assert(Option.isNull(callback_onBurn));
-            callback_onBurn := ?fn;
-        };
+  
 
         /// Start the ledger timers
         ignore Timer.setTimer<system>(#seconds 0, delayed_start);
