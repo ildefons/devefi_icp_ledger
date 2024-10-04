@@ -136,6 +136,10 @@ module {
             callback_onSent := ?fn;
         };
 
+        public func isRegisteredAccount(aid: Blob) : Bool {
+            not Option.isNull(BTree.get(lmem.known_accounts, Blob.compare, aid));
+        };
+
         let icrc_sender = IcpSender.Sender({
             ledger_id;
             mem = lmem.sender;
@@ -148,6 +152,7 @@ module {
                 };
             };
             onCycleEnd = func (i: Nat64) { sender_instructions_cost := i }; // used to measure how much instructions it takes to send transactions in one cycle
+            isRegisteredAccount;
         });
         
         private func handle_incoming_amount(subaccount: ?Blob, amount: Nat) : () {
@@ -306,6 +311,7 @@ module {
             let ?me = lmem.actor_principal else Debug.trap("no actor principal");
             ignore BTree.delete<Blob, Blob>(lmem.known_accounts, Blob.compare, Principal.toLedgerAccount(me, subaccount));
         };
+
 
         /// Set the actor principal. If `start` has been called before, it will really start the ledger.
         public func setOwner(me: Principal) : () {

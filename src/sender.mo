@@ -80,6 +80,7 @@ module {
         onConfirmations : ([Nat64]) -> ();
         getFee : () -> Nat;
         onCycleEnd : (Nat64) -> (); // Measure performance of following and processing transactions. Returns instruction count
+        isRegisteredAccount : (Blob) -> Bool;
     }) {
         var started = false;
         let ledger = actor(Principal.toText(ledger_id)) : Ledger.Oneway;
@@ -173,6 +174,10 @@ module {
                 };
                 // let ?tr = tx.transfer else continue tloop;
                 // if (tr.from.owner != owner) continue tloop;
+
+                // Check if from is registered subaccount owned by this canister
+                if (not isRegisteredAccount(imp.from)) continue tloop; // Transaction not coming from us
+
                 let ?memo = imp.memo else continue tloop;
                 let ?id = DNat64(Blob.toArray(memo)) else continue tloop;
                 
