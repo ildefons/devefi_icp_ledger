@@ -226,7 +226,7 @@ module {
         };
 
         public func isSent(id:Nat64) : Bool {
-            Set.has(mem.transaction_ids, Set.n64hash, id);
+            not Set.has(mem.transaction_ids, Set.n64hash, id);
         };
 
         public func stop() {
