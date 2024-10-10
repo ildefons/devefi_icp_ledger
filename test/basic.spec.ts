@@ -76,7 +76,7 @@ describe('Basic', () => {
         memo: [],
         created_at_time: [],
       });
-      await passTime(100); //just for the debug printouts
+      await passTime(1000); //just for the debug printouts
       expect(toState(result)).toStrictEqual({Ok:"1"});
     }, 6000*1000);
 
@@ -85,72 +85,52 @@ describe('Basic', () => {
       expect(toState(result)).toBe("200000000")
     });
 
-    // it(`last_indexed_tx should start at 0`, async () => {
-    //   const result = await user.get_info();
-    //   expect(toState(result.last_indexed_tx)).toBe("0");
-    // });
-
     it(`Check ledger transaction log`  , async () => {
-      const result = await ledger.get_transactions({start: 0n, length: 100n});
-      expect(result.transactions.length).toBe(2);
-      expect(toState(result.log_length)).toBe("2");
-      
+      const result = await ledger.query_blocks({start: 0n, length: 100n});
+      expect(result.chain_length).toBe(2n);
     });
 
-    // it(`start and last_indexed_tx should be at 1`, async () => {
+    it(`start and last_indexed_tx should be at 1`, async () => {
+      const result2 = await user.get_info();
+      expect(toState(result2.last_indexed_tx)).toBe("2");     
+    });
+
+    it(`feed ledger user and check if it made the transactions`, async () => {
    
-    //   await passTime(1);
+      const result = await ledger.icrc1_transfer({
+        to: {owner: userCanisterId, subaccount:[]},
+        from_subaccount: [],
+        amount: 1000000_0000_0000n,
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
+
+      await passTime(1200);
+      const result2 = await user.get_info();
+      expect(toState(result2.last_indexed_tx)).toBe("2003");
+    }, 600*1000);
+
+    it('Compare user<->ledger balances', async () => {
+      let accounts = await user.accounts();
+      let idx =0;
+      for (let [subaccount, balance] of accounts) {
+        idx++;
+        if (idx % 50 != 0) continue; // check only every 50th account (to improve speed, snapshot should be enough when trying to cover all)
+        let ledger_balance = await ledger.icrc1_balance_of({owner: userCanisterId, subaccount:[subaccount]});
+        expect(toState(balance)).toBe(toState(ledger_balance));
+      } 
+    }, 190*1000);
+
+    it('Compare user balances to snapshot', async () => {
+      let accounts = await user.accounts();
+      expect(toState(accounts)).toMatchSnapshot()
+    });
     
-    //   const result = await user.start();
-
-    //   await passTime(3);
-    //   const result2 = await user.get_info();
-    //   expect(toState(result2.last_indexed_tx)).toBe("2");
-      
-    // });
-
-    // it(`feed ledger user and check if it made the transactions`, async () => {
-   
-    //   const result = await ledger.icrc1_transfer({
-    //     to: {owner: userCanisterId, subaccount:[]},
-    //     from_subaccount: [],
-    //     amount: 1000000_0000_0000n,
-    //     fee: [],
-    //     memo: [],
-    //     created_at_time: [],
-    //   });
-
-    //   await passTime(120);
-
-    //   const result2 = await user.get_info();
-
-    //   expect(toState(result2.last_indexed_tx)).toBe("6003");
-      
-    // }, 600*1000);
-
-
-    // it('Compare user<->ledger balances', async () => {
-    //   let accounts = await user.accounts();
-    //   let idx =0;
-    //   for (let [subaccount, balance] of accounts) {
-    //     idx++;
-    //     if (idx % 50 != 0) continue; // check only every 50th account (to improve speed, snapshot should be enough when trying to cover all)
-    //     let ledger_balance = await ledger.icrc1_balance_of({owner: userCanisterId, subaccount:[subaccount]});
-    //     expect(toState(balance)).toBe(toState(ledger_balance));
-    //   } 
-    // }, 190*1000);
-
-
-    // it('Compare user balances to snapshot', async () => {
-    //   let accounts = await user.accounts();
-    //   expect(toState(accounts)).toMatchSnapshot()
-    // });
-
-    
-    // it('Check if error log is empty', async () => {
-    //   let errs = await user.get_errors();
-    //   expect(toState(errs)).toStrictEqual([]);
-    // });
+    it('Check if error log is empty', async () => {
+      let errs = await user.get_errors();
+      expect(toState(errs)).toStrictEqual([]);
+    });
 
     async function passTime(n:number) {
       for (let i=0; i<n; i++) {

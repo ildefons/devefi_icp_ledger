@@ -37,10 +37,8 @@ actor class({ledgerId: Principal}) = this {
 
     let dust = 10000; // leave dust to try the balance of function
 
-    Debug.print("before.");
     ledger.onReceive(func (t) {
-        Debug.print("onReceiveOOOOOOOOOOOOOOOOOOOOOO");
-        if (t.to.subaccount == null) {Debug.print("onReceive if");
+        if (t.to.subaccount == null) {
             // we will split into 1,000 subaccounts
             var i = 0;
             label sending loop {
@@ -49,7 +47,7 @@ actor class({ledgerId: Principal}) = this {
                 i += 1;
                 if (i >= 1_000) break sending;
             }
-        } else {Debug.print("onReceive else<----------------------------------");
+        } else {
             // if it has subaccount
             // we will pass half to another subaccount
             if (t.amount/10 < ledger.getFee() ) return; // if we send that it will be removed from our balance but won't register
@@ -57,11 +55,12 @@ actor class({ledgerId: Principal}) = this {
             next_subaccount_id += 1;
         }
     });
-    Debug.print("after.");
     //---
+    ledger.onSent(func (id:Nat64) {
+        Debug.print("onSent:"#debug_show(id));
+    });
 
     public func start() {
-        Debug.print("started");
         ledger.setOwner(Principal.fromActor(this));
         };
 
@@ -93,7 +92,4 @@ actor class({ledgerId: Principal}) = this {
         ledger.getMeta()
         };
 
-    // public query func get_transactions() : async L.Meta {
-    //     ledger.get_transactions(2);
-    //     };
 }

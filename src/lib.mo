@@ -205,16 +205,20 @@ module {
             onCycleEnd = func (i: Nat64) { reader_instructions_cost := i }; // returns the instructions the cycle used. 
                                                         // It can include multiple calls to onRead
             onRead = func (transactions: [TxTypes.Transaction], _) {
+                //Debug.print("inside onRead");
+                
                 icrc_sender.confirm(transactions);
                 
                 let fee = lmem.fee;
                 let ?me = lmem.actor_principal else return;
                 label txloop for (tx in transactions.vals()) {
+
                     switch(tx) {
                         case (#u_mint(mint)) {
                             let ?subaccount = BTree.get(lmem.known_accounts, Blob.compare, mint.to) else continue txloop;
                             handle_incoming_amount(?subaccount, mint.amount);
-                            ignore do ? { callback_onReceive!({
+                            ignore do ? { 
+                              callback_onReceive!({
                                 from = #icrc({
                                     owner = minter;
                                     subaccount = null;
@@ -229,6 +233,7 @@ module {
                                 memo = mint.memo;
                                 spender = null;
                                 }); };
+                            
                         };
 
                         case (#u_transfer(tr)) {
@@ -321,7 +326,7 @@ module {
 
         // will loop until the actor_principal is set
         private func delayed_start<system>() : async () {
-          if (not Option.isNull(lmem.actor_principal)) {
+         if (not Option.isNull(lmem.actor_principal)) {
             await refreshFee();
             realStart<system>();
             ignore Timer.recurringTimer<system>(#seconds 3600, refreshFee); // every hour
@@ -336,7 +341,7 @@ module {
         /// Really starts the ledger and the whole system
         private func realStart<system>() {
             let ?me = lmem.actor_principal else Debug.trap("no actor principal");
-            Debug.print(debug_show(me));
+            
             registerSubaccount(null);
             if (started) Debug.trap("already started");
             started := true;
@@ -438,6 +443,7 @@ module {
 
         /// Called when a received transaction is confirmed. Only one function can be set. (except dust < fee)
         public func onReceive(fn:(Transfer) -> ()) : () {
+            
             assert(Option.isNull(callback_onReceive));
             callback_onReceive := ?fn;
         };
