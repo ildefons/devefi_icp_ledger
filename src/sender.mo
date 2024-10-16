@@ -160,7 +160,7 @@ module {
 
         public func confirm(txs: [TxTypes.Transaction]) {
             let ?owner = mem.stored_owner else return;
-
+            Debug.print("inside sende.confirm:"#debug_show(txs.size()));
             let confirmations = Vector.new<Nat64>();
             label tloop for (tx in txs.vals()) {
                 let imp = switch(tx) { // Our canister realistically will never be the ICP minter
@@ -170,21 +170,26 @@ module {
                     case (#u_burn(b)) {
                         {from=b.from; memo=b.memo};
                     };
-                    case (_) continue tloop;
+                    case (_) {
+                        Debug.print("??????");
+                        continue tloop;
+                    }
                 };
+                //Debug.print("1");
                 // let ?tr = tx.transfer else continue tloop;
                 // if (tr.from.owner != owner) continue tloop;
 
                 // Check if from is registered subaccount owned by this canister
                 if (not isRegisteredAccount(imp.from)) continue tloop; // Transaction not coming from us
-
-                let ?memo = imp.memo else continue tloop;
-                let ?id = DNat64(Blob.toArray(memo)) else continue tloop;
+                //Debug.print("12");
+                let ?memo = imp.memo else continue tloop; //Debug.print("13");
+                let ?id = DNat64(Blob.toArray(memo)) else continue tloop; //Debug.print("14");
                 
-                ignore BTree.delete<Blob, Transaction>(mem.transactions, Blob.compare, txIdBlob(imp.from, id));
-                Set.delete(mem.transaction_ids, Set.n64hash, id);
-                Vector.add<Nat64>(confirmations, id);
+                ignore BTree.delete<Blob, Transaction>(mem.transactions, Blob.compare, txIdBlob(imp.from, id)); //Debug.print("1");
+                Set.delete(mem.transaction_ids, Set.n64hash, id); //Debug.print("15");
+                Vector.add<Nat64>(confirmations, id); //Debug.print("16");
             };
+            Debug.print("confirmations:"#debug_show(Vector.toArray(confirmations).size()));
             onConfirmations(Vector.toArray(confirmations));
         };
 

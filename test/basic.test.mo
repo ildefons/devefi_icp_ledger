@@ -7,7 +7,9 @@ import Iter "mo:base/Iter";
 import I "mo:itertools/Iter";
 import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
+import Nat "mo:base/Nat";
 import Debug "mo:base/Debug";
+import Array "mo:base/Array";
 
 
 actor class({ledgerId: Principal}) = this {
@@ -37,28 +39,87 @@ actor class({ledgerId: Principal}) = this {
 
     let dust = 10000; // leave dust to try the balance of function
 
+    var onSentId: Nat = 0;
+
     ledger.onReceive(func (t) {
-        if (t.to.subaccount == null) {
-            // we will split into 1,000 subaccounts
-            var i = 0;
-            label sending loop {
-                let amount = t.amount / 10000; // Each account gets 1/10000
-                ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(Nat64.fromNat(i))}; amount; from_subaccount = t.to.subaccount; });
-                i += 1;
-                if (i >= 1_000) break sending;
-            }
-        } else {
-            // if it has subaccount
-            // we will pass half to another subaccount
-            if (t.amount/10 < ledger.getFee() ) return; // if we send that it will be removed from our balance but won't register
-            ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(next_subaccount_id)}; amount = t.amount / 10 ; from_subaccount = t.to.subaccount; });
-            next_subaccount_id += 1;
-        }
+        Debug.print("onReceive:"#debug_show(onSentId));
+        // if (t.to.subaccount == null) {  //V: NOTNECESAARY
+        //     // we will split into 1,000 subaccounts
+        //     var i = 0;
+        //     label sending loop {
+        //         let amount = t.amount / 10000; // Each account gets 1/10000
+        //         ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(Nat64.fromNat(i))}; amount; from_subaccount = t.to.subaccount; });
+        //         i += 1;
+        //         if (i >= 1_000) break sending;
+        //     }
+        // } else {
+        //     // if it has subaccount
+        //     // we will pass half to another subaccount
+        //     if (t.amount/10 < ledger.getFee() ) return; // if we send that it will be removed from our balance but won't register
+        //     ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(next_subaccount_id)}; amount = t.amount / 10 ; from_subaccount = t.to.subaccount; });
+        //     next_subaccount_id += 1;
+        // }
     });
     //---
     ledger.onSent(func (id:Nat64) {
-        Debug.print("onSent:"#debug_show(id));
+        Debug.print("onSent:"#debug_show(onSentId));
+        onSentId := onSentId + 1;
     });
+
+    private func fromNat(len : Nat, n : Nat) : [Nat8] {
+        let ith_byte = func(i : Nat) : Nat8 {
+            assert(i < len);
+            let shift : Nat = 8 * (len - 1 - i);
+            Nat8.fromIntWrap(n / 2**shift)
+        };
+        Array.tabulate<Nat8>(len, ith_byte);
+    };
+
+    public shared ({ caller }) func sendTest(sub_nat: Nat64, amount: Nat) {
+        // let sub_array: [Nat8] = fromNat(sub_nat, 32);
+        // let sub_blob = Blob.fromArray(sub_array);
+        //let sub_pr = Principal.fromBlob(sub_blob);
+        let aux = ledger.send({ to = {owner=ledger.me();           //V: check for tokens ??????? 
+                              subaccount=test_subaccount(sub_nat)}; 
+                              amount = amount; 
+                              from_subaccount = null; });
+        Debug.print("AUX ON SENT:"#debug_show(aux));
+    };
+
+    // public shared ({ caller }) func getBlobFromNat(sub_nat: Nat) : async [Nat8] {
+    //     let sub_array: [Nat8] = fromNat(sub_nat, 32);
+    //     //let sub_blob = Blob.fromArray(sub_array);
+    //     sub_array;
+    // };
+
+    public query func getBalanceFromNat(sub_nat: Nat64) : async Nat {
+        // let sub_array: [Nat8] = fromNat(sub_nat, 32);
+        // let sub_blob = Blob.fromArray(sub_array);
+        // let aux:Nat = await ledger.icrc1_balance_of({owner=ledger.me();
+        //                                          subaccount=test_subaccount(2)});
+        let ret:Nat = ledger.balance(test_subaccount(sub_nat));                                         
+        //let sub_blob = Blob.fromArray(sub_array);
+        ret;
+    };   
+    public query func getSubFromNat(sub_nat: Nat64) : async [Nat8] {
+        let ret = test_subaccount(sub_nat);//fromNat(32,sub_nat);
+        let aux: Blob  = switch(ret) {
+            case null "0" : Blob;
+            case (?Blob) Blob;
+        };
+        let ret2 = Blob.toArray(aux);
+        ret2;
+        //let ret_array = ret.toArray();
+        // let sub_blob = Blob.fromArray(sub_array);
+        // let aux:Nat = await ledger.icrc1_balance_of({owner=ledger.me();
+        //                                          subaccount=test_subaccount(2)});
+        // let sub_array = test_subaccount(sub_nat);                                         
+        // let ret = Blob.fromArray(sub_array);
+        
+    };   
+    public query func get_onsentid() : async Nat {  
+        onSentId;
+    };
 
     public func start() {
         ledger.setOwner(Principal.fromActor(this));

@@ -108,9 +108,17 @@ module {
 
             if (query_start != mem.last_indexed_tx) {lock:=0; return;};
 
+            if (rez.blocks.size()==1) {
+                Debug.print("blocksize one:"#debug_show(rez.blocks[0]));
+            };
+            if (rez.blocks.size()==125) {
+                Debug.print("blocksize onetwofive:"#debug_show(rez.blocks[0]));
+            };
+
 
             if (rez.archived_blocks.size() == 0) {
                 // We can just process the transactions that are inside the ledger and not inside archive
+                Debug.print("d1:"#debug_show(rez.blocks.size()));
                 onRead(transformTransactions(rez.blocks), mem.last_indexed_tx );
                 mem.last_indexed_tx += rez.blocks.size();
       
@@ -167,13 +175,13 @@ module {
                         onError("out of order: " # Nat.toText(u.start) # " " # Nat.toText(mem.last_indexed_tx) # " " # Nat.toText(u.transactions.size()));
                         lock := 0;
                         return;
-                    };
+                    };Debug.print("d2");
                     onRead(transformTransactions(u.transactions), mem.last_indexed_tx );
                     mem.last_indexed_tx += u.transactions.size();
                     if (u.transactions.size() != 0) lastTxTime := u.transactions[u.transactions.size() - 1].timestamp.timestamp_nanos;
                 };
 
-                if (rez.blocks.size() != 0) {
+                if (rez.blocks.size() != 0) {Debug.print("d3");
                     onRead(transformTransactions(rez.blocks), mem.last_indexed_tx );
                     mem.last_indexed_tx += rez.blocks.size();
                     lastTxTime := rez.blocks[rez.blocks.size() - 1].timestamp.timestamp_nanos;
