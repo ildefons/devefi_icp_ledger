@@ -66,69 +66,72 @@ describe('Basic', () => {
       expect(toState(result)).toBe("100000000000")
     });
 
-    // it(`Send 1 to Bob`, async () => {
-    //   // ledger.setIdentity(jo);   //ILDE: this is a pocketIC method
-    //   // await passTime(1000);
-    //   // user.start();
+    it(`Send 1 to Bob`, async () => {
+      // ledger.setIdentity(jo);   //ILDE: this is a pocketIC method
+      // await passTime(1000);
+      // user.start();
       
-    //   const result = await ledger.icrc1_transfer({
-    //     to: {owner: bob.getPrincipal(), subaccount:[]},
-    //     from_subaccount: [],
-    //     amount: 3_0000_0000n,
-    //     fee: [],
-    //     memo: [],
-    //     created_at_time: [],
-    //   });
-    //   await passTime(10); //just for the debug printouts
-    //   expect(toState(result)).toStrictEqual({Ok:"1"});
-    // }, 6000*1000);
+      const result = await ledger.icrc1_transfer({
+        to: {owner: bob.getPrincipal(), subaccount:[]},
+        from_subaccount: [],
+        amount: 2_1230_0000n,
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
+      await passTime(10); //just for the debug printouts
+      expect(toState(result)).toStrictEqual({Ok:"1"});
+    }, 6000*1000);
 
-    // it(`Check Bob balance`  , async () => {
-    //   const result = await ledger.icrc1_balance_of({owner: bob.getPrincipal(), subaccount: []});
-    //   expect(toState(result)).toBe("200000000")
-    // });
+    it(`Check Bob balance`  , async () => {
+      const result = await ledger.icrc1_balance_of({owner: bob.getPrincipal(), subaccount: []});
+      expect(toState(result)).toBe("212300000")
+    });
 
-    // it(`Check ledger transaction log`  , async () => {
-    //   const result = await ledger.query_blocks({start: 0n, length: 100n});
-    //   expect(result.chain_length).toBe(2n);
-    // });
+    it(`Check ledger transaction log`  , async () => {
+      const result = await ledger.query_blocks({start: 0n, length: 100n});
+      expect(result.chain_length).toBe(2n);
+    });
 
-    // it(`start and last_indexed_tx should be at 1`, async () => {
-    //   const result2 = await user.get_info();
-    //   expect(toState(result2.last_indexed_tx)).toBe("2");     
-    // });
+    it(`start and last_indexed_tx should be at 1`, async () => {
+      const result2 = await user.get_info();
+      expect(toState(result2.last_indexed_tx)).toBe("2");     
+    });
 
-    // it(`feed ledger user and check if it made the transactions`, async () => {
+    it(`feed ledger user and check if it made the transactions`, async () => {
    
-    //   const result = await ledger.icrc1_transfer({
-    //     to: {owner: userCanisterId, subaccount:[]},
-    //     from_subaccount: [],
-    //     amount: 1000000_0000_0000n,
-    //     fee: [],
-    //     memo: [],
-    //     created_at_time: [],
-    //   });
+      const result = await ledger.icrc1_transfer({
+        to: {owner: userCanisterId, subaccount:[]},
+        from_subaccount: [],
+        amount: 1000000_0000_0000n,
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
 
-    //   await passTime(1200);
-    //   const result2 = await user.get_info();
-    //   expect(toState(result2.last_indexed_tx)).toBe("2003");
-    // }, 600*1000);
+      await passTime(1200);
+      const result2 = await user.get_info();
+      expect(toState(result2.last_indexed_tx)).toBe("3");
+    }, 600*1000);
 
-    // it('Compare user<->ledger balances', async () => {
-    //   let accounts = await user.accounts();
-    //   let idx =0;
-    //   for (let [subaccount, balance] of accounts) {
-    //     idx++;
-    //     if (idx % 50 != 0) continue; // check only every 50th account (to improve speed, snapshot should be enough when trying to cover all)
-    //     let ledger_balance = await ledger.icrc1_balance_of({owner: userCanisterId, subaccount:[subaccount]});
-    //     expect(toState(balance)).toBe(toState(ledger_balance));
-    //   } 
-    // }, 190*1000);
+    it('Compare user<->ledger balances', async () => {
+      let accounts = await user.accounts();
+      let idx =0;
+      for (let [subaccount, balance] of accounts) {
+        idx++;
+        if (idx % 50 != 0) continue; // check only every 50th account (to improve speed, snapshot should be enough when trying to cover all)
+        let ledger_balance = await ledger.icrc1_balance_of({owner: userCanisterId, subaccount:[subaccount]});
+        expect(toState(balance)).toBe(toState(ledger_balance));
+      } 
+    }, 190*1000);
 
-    // it('Compare user balances to snapshot', async () => {
-    //   let accounts = await user.accounts();
-    //   expect(toState(accounts)).toMatchSnapshot()
-    // });
+    it('Compare user balances to snapshot', async () => {
+      let accounts = await user.accounts();
+      //console.log("account:", accounts);
+      await passTime(100);
+      let accounts2 = await user.accounts();
+      expect(toState(accounts2)).toMatchSnapshot()
+    });
     
     // // it('Check if error log is empty', async () => {
     // //   let errs = await user.get_errors();
@@ -136,8 +139,8 @@ describe('Basic', () => {
     // // });
 
     it('check onSent', async () => {
-      // let idbefore = await user.get_onsentid();
-      // console.log("onsentid before:", idbefore);
+      let idbefore = await user.get_onsentid();
+      //console.log("onsentid before:", idbefore);
       // const result = await ledger.icrc1_transfer({
       //   //to: {owner: userCanisterId, subaccount:[]},//to: {owner: bob.getPrincipal(), subaccount:[]},
       //   to: {owner: ali.getPrincipal(), subaccount:[]},
@@ -152,7 +155,8 @@ describe('Basic', () => {
       // let idafter = await user.get_onsentid();
       // console.log("onsentid after:", idafter);
       //expect(toState(errs)).toStrictEqual([]);
-
+      
+      // make sure subaccount has some tokens
       const result3 = await ledger.icrc1_transfer({
         to: {owner: userCanisterId, subaccount:[]},
         from_subaccount: [],
@@ -163,14 +167,15 @@ describe('Basic', () => {
       });
       await passTime(10);
 
+      // send a few tokens to a subaccount so we increase setid (indicator that onsent() is executed)
       const sub_sub = await user.getSubFromNat(2n);
-
       await user.sendTest(2n, 123456n);
       await passTime(10);
-      console.log("sub_sub:", sub_sub);
-      let balance_sub1 = await ledger.icrc1_balance_of({owner: userCanisterId, subaccount:[sub_sub]});
-      await passTime(10);
-      console.log("balance sub1:",balance_sub1);
+
+      // console.log("sub_sub:", sub_sub);
+      // let balance_sub1 = await ledger.icrc1_balance_of({owner: userCanisterId, subaccount:[sub_sub]});
+      // await passTime(10);
+      // console.log("balance sub1:",balance_sub1);
 
       const result2 = await ledger.icrc1_transfer({
         to: {owner: userCanisterId, subaccount:[sub_sub]},
@@ -181,15 +186,19 @@ describe('Basic', () => {
         created_at_time: [],
       });
 
+      let idafter = await user.get_onsentid();
+      //console.log("onsentid after:", idafter);
+
       //check balance in 2<-------------
       //const mysub = new Uint8Array([0]);//await user.getBlobFromNat(2n);
       //let balance_sub = await user.getBalanceFromNat(2n);    //<----------------WRONG: I should do ledger.getBala                                                         // I need the subaccount right
    
-      console.log("sub_sub:",sub_sub);
-      let balance_sub2 = await ledger.icrc1_balance_of({owner: userCanisterId, subaccount:[sub_sub]});
+      // console.log("sub_sub:",sub_sub);
+      // let balance_sub2 = await ledger.icrc1_balance_of({owner: userCanisterId, subaccount:[sub_sub]});
 
       await passTime(10);
-      console.log("balance sub2:",balance_sub2);
+      expect(idbefore+1n).toBe(idafter)
+      // console.log("balance sub2:",balance_sub2);
     }, 600*1000);    
 
     async function passTime(n:number) {

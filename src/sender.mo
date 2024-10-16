@@ -160,7 +160,7 @@ module {
 
         public func confirm(txs: [TxTypes.Transaction]) {
             let ?owner = mem.stored_owner else return;
-            Debug.print("inside sende.confirm:"#debug_show(txs.size()));
+            //Debug.print("inside sende.confirm:"#debug_show(txs.size()));
             let confirmations = Vector.new<Nat64>();
             label tloop for (tx in txs.vals()) {
                 let imp = switch(tx) { // Our canister realistically will never be the ICP minter
@@ -171,7 +171,7 @@ module {
                         {from=b.from; memo=b.memo};
                     };
                     case (_) {
-                        Debug.print("??????");
+                        //Debug.print("??????");
                         continue tloop;
                     }
                 };
@@ -189,7 +189,7 @@ module {
                 Set.delete(mem.transaction_ids, Set.n64hash, id); //Debug.print("15");
                 Vector.add<Nat64>(confirmations, id); //Debug.print("16");
             };
-            Debug.print("confirmations:"#debug_show(Vector.toArray(confirmations).size()));
+            //Debug.print("confirmations:"#debug_show(Vector.toArray(confirmations).size()));
             onConfirmations(Vector.toArray(confirmations));
         };
 

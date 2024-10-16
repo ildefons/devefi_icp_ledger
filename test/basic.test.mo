@@ -42,7 +42,7 @@ actor class({ledgerId: Principal}) = this {
     var onSentId: Nat = 0;
 
     ledger.onReceive(func (t) {
-        Debug.print("onReceive:"#debug_show(onSentId));
+        //Debug.print("onReceive:"#debug_show(onSentId));
         // if (t.to.subaccount == null) {  //V: NOTNECESAARY
         //     // we will split into 1,000 subaccounts
         //     var i = 0;
@@ -62,7 +62,7 @@ actor class({ledgerId: Principal}) = this {
     });
     //---
     ledger.onSent(func (id:Nat64) {
-        Debug.print("onSent:"#debug_show(onSentId));
+        //Debug.print("--------->onSent:"#debug_show(onSentId));
         onSentId := onSentId + 1;
     });
 
@@ -83,7 +83,7 @@ actor class({ledgerId: Principal}) = this {
                               subaccount=test_subaccount(sub_nat)}; 
                               amount = amount; 
                               from_subaccount = null; });
-        Debug.print("AUX ON SENT:"#debug_show(aux));
+        //Debug.print("AUX ON SENT:"#debug_show(aux));
     };
 
     // public shared ({ caller }) func getBlobFromNat(sub_nat: Nat) : async [Nat8] {

@@ -205,7 +205,7 @@ module {
             onCycleEnd = func (i: Nat64) { reader_instructions_cost := i }; // returns the instructions the cycle used. 
                                                         // It can include multiple calls to onRead
             onRead = func (transactions: [TxTypes.Transaction], _) {
-                Debug.print("inside onRead"#debug_show(transactions.size()));
+                //Debug.print("inside onRead"#debug_show(transactions.size()));
                 
                 icrc_sender.confirm(transactions);
                 
