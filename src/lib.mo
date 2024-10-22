@@ -204,19 +204,24 @@ module {
             onError = logErr; // In case a cycle throws an error
             onCycleEnd = func (i: Nat64) { reader_instructions_cost := i }; // returns the instructions the cycle used. 
                                                         // It can include multiple calls to onRead
-            onRead = func (transactions: [TxTypes.Transaction], _) {
+            onRead = func (transactions: [TxTypes.Transaction], myid_) {
                 //Debug.print("inside onRead"#debug_show(transactions.size()));
                 
                 icrc_sender.confirm(transactions);
-                
-                let fee = lmem.fee;
-                let ?me = lmem.actor_principal else return;
+                //Debug.print("or01");
+                let fee = lmem.fee;//Debug.print("or011");
+                let ?me = lmem.actor_principal else return;//Debug.print("or012");
                 label txloop for (tx in transactions.vals()) {
-
+                    //Debug.print("or02");
                     switch(tx) {
-                        case (#u_mint(mint)) {
+                        case (#u_mint(mint)) {//Debug.print("or021");
+                            //Debug.print("myid_:"#debug_show(myid_));
+                            //Debug.print("mint:"#debug_show(mint));
+                            //Debug.print("mint.to:"#debug_show((mint.to)));
+                            //Debug.print("BTree.get(lmem.known_accounts, Blob.compare, mint.to):"#debug_show(BTree.get(lmem.known_accounts, Blob.compare, mint.to)));
                             let ?subaccount = BTree.get(lmem.known_accounts, Blob.compare, mint.to) else continue txloop;
                             handle_incoming_amount(?subaccount, mint.amount);
+                            //Debug.print("or1");
                             ignore do ? { 
                               callback_onReceive!({
                                 from = #icrc({
@@ -233,10 +238,11 @@ module {
                                 memo = mint.memo;
                                 spender = null;
                                 }); };
+                            //Debug.print("or2");
                             
                         };
 
-                        case (#u_transfer(tr)) {
+                        case (#u_transfer(tr)) {//Debug.print("or022");
                             switch(BTree.get(lmem.known_accounts, Blob.compare, tr.to)) {
                                 case (?subaccount) {
                                     if (tr.amount >= fee) { // ignore it since we can't even burn that
@@ -261,7 +267,9 @@ module {
                                         };
                                     }
                                 };
-                                case (null) ();
+                                case (null) {
+                                    //Debug.print("or023");
+                                    ()};
                             };
                       
                             switch(BTree.get(lmem.known_accounts, Blob.compare, tr.from)) {
@@ -309,7 +317,18 @@ module {
         /// Any transactions to or from a subaccount before registering it will be ignored
         public func registerSubaccount(subaccount: ?Blob) : () {
             let ?me = lmem.actor_principal else Debug.trap("no actor principal");
-            ignore BTree.insert<Blob, Blob>(lmem.known_accounts, Blob.compare, Principal.toLedgerAccount(me, subaccount), subaccountToBlob(subaccount));
+            //Debug.print("------------------INSIDE REGISTER");
+            //Debug.print("subaccount:"#debug_show(subaccount));
+            //Debug.print("me:"#debug_show(me));
+            //Debug.print("End REGISTER----------------------");
+            let aux = BTree.insert<Blob, Blob>(lmem.known_accounts, Blob.compare, Principal.toLedgerAccount(me, subaccount), subaccountToBlob(subaccount));
+            //Debug.print("after register:"#debug_show(lmem.known_accounts));
+            let sub_blob: Blob  = switch(aux) {
+                case null "0" : Blob;
+                case (?Blob) Blob;
+            };
+            let isreg = isRegisteredAccount(sub_blob);
+            //Debug.print("the subaccount was registered3: "#debug_show(me));
         };
 
         public func unregisterSubaccount(subaccount: ?Blob) : () {

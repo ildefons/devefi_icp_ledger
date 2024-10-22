@@ -40,25 +40,32 @@ actor class({ledgerId: Principal}) = this {
     let dust = 10000; // leave dust to try the balance of function
 
     var onSentId: Nat = 0;
+    var numResend: Nat = 10;
 
     ledger.onReceive(func (t) {
         //Debug.print("onReceive:"#debug_show(onSentId));
-        // if (t.to.subaccount == null) {  //V: NOTNECESAARY
-        //     // we will split into 1,000 subaccounts
-        //     var i = 0;
-        //     label sending loop {
-        //         let amount = t.amount / 10000; // Each account gets 1/10000
-        //         ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(Nat64.fromNat(i))}; amount; from_subaccount = t.to.subaccount; });
-        //         i += 1;
-        //         if (i >= 1_000) break sending;
-        //     }
-        // } else {
-        //     // if it has subaccount
-        //     // we will pass half to another subaccount
-        //     if (t.amount/10 < ledger.getFee() ) return; // if we send that it will be removed from our balance but won't register
-        //     ignore ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(next_subaccount_id)}; amount = t.amount / 10 ; from_subaccount = t.to.subaccount; });
-        //     next_subaccount_id += 1;
-        // }
+        //Debug.print("t:"#debug_show(t));
+        if (t.to.subaccount == null) {  //V: NOTNECESAARY
+            Debug.print("on if");
+            //we will split into (numResend) subaccounts (from 1 to numResend)
+            var i = 0;
+            label sending loop {
+                let amount = t.amount / 10000; // Each account gets 1/10000
+                Debug.print("if loop:"#debug_show(i));
+                let aux = ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(Nat64.fromNat(i))}; amount; from_subaccount = t.to.subaccount; });
+                //Debug.print("aux:"#debug_show(aux));
+                i += 1;
+                if (i >= numResend) break sending;
+            }
+        } else {
+            Debug.print("on else");
+            // if it has subaccount
+            // we will pass half to another subaccount
+            if (t.amount/10 < ledger.getFee() ) return; // if we send that it will be removed from our balance but won't register
+            let ret = ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(next_subaccount_id)}; amount = t.amount / 10 ; from_subaccount = t.to.subaccount; });
+            //Debug.print("else ret:"#debug_show(ret));
+            next_subaccount_id += 1;
+        }
     });
     //---
     ledger.onSent(func (id:Nat64) {
@@ -73,6 +80,25 @@ actor class({ledgerId: Principal}) = this {
             Nat8.fromIntWrap(n / 2**shift)
         };
         Array.tabulate<Nat8>(len, ith_byte);
+    };
+
+    public shared func setNumResend(numResend_: Nat) {
+        numResend := numResend_; 
+    };
+    
+    public shared func registerSubaccount(subnum: Nat) {
+        let aux = test_subaccount(Nat64.fromNat(subnum));
+        let aux_sub: Blob  = switch(aux) {
+                    case null "0" : Blob;
+                    case (?Blob) Blob;
+                };
+        let isreg = ledger.isRegisteredAccount(aux_sub);
+        //Debug.print("the subaccount was registered: "#debug_show(isreg));
+        if (isreg != true) {
+            ledger.registerSubaccount(aux);
+        }; 
+        let isreg2 = ledger.isRegisteredAccount(aux_sub);
+        //Debug.print("the subaccount was registered2: "#debug_show(isreg2));
     };
 
     public shared ({ caller }) func sendTest(sub_nat: Nat64, amount: Nat) {
@@ -92,6 +118,21 @@ actor class({ledgerId: Principal}) = this {
     //     sub_array;
     // };
 
+    public shared func registerSubaccountFromBlob(sub_blob: Blob) {
+        // let aux = test_subaccount(2);
+        // let sub_blob2: Blob  = switch(aux) {
+        //     case null "0" : Blob;
+        //     case (?Blob) Blob;
+        // };
+        let isreg = ledger.isRegisteredAccount(sub_blob);
+        //Debug.print("the subaccount was registered: "#debug_show(isreg));
+        if (isreg != true) {
+            ledger.registerSubaccount(?sub_blob);
+        }; 
+        let isreg2 = ledger.isRegisteredAccount(sub_blob);
+        //Debug.print("the subaccount was registered2: "#debug_show(isreg2));
+    };
+
     public query func getBalanceFromNat(sub_nat: Nat64) : async Nat {
         // let sub_array: [Nat8] = fromNat(sub_nat, 32);
         // let sub_blob = Blob.fromArray(sub_array);
@@ -107,6 +148,7 @@ actor class({ledgerId: Principal}) = this {
             case null "0" : Blob;
             case (?Blob) Blob;
         };
+        //Debug.print("ret form getSubFromNat:"#debug_show(ret));
         let ret2 = Blob.toArray(aux);
         ret2;
         //let ret_array = ret.toArray();

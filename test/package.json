@@ -17,6 +17,7 @@
     "@dfinity/principal": "^1.0.0",
     "@dfinity/nns": "^1.0.0",
     "@dfinity/utils": "^1.0.0",
+    "@dfinity/ledger-icp": "^1.0.0",
     "@infu/icblast": "^2.0.46",
     "@types/node": "^20.11.19",
     "get-random-values": "^3.0.0",
