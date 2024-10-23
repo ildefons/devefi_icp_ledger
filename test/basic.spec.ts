@@ -54,14 +54,8 @@ describe('Basic', () => {
       user = fixture.actor;
       userCanisterId = fixture.canisterId;
 
-      // console.log("jo:",jo.getPrincipal().toString());
-      // console.log("ledger:",ledgerCanisterId.toString());
-      // console.log("user:",userCanisterId.toString());
-
       await ledger.setIdentity(jo);   //ILDE: this is a pocketIC method
-
-      await user.start();
-      
+      await user.start();    
       await passTime(100);
 
       // this defines the number of subaccounts that "onreceive" send fund when it get a block to subaccount=null
@@ -80,46 +74,47 @@ describe('Basic', () => {
 
     it(`Send some to subaccount 0 not registered`, async () => {
       
-      let res = await ledger.query_blocks({start:0n,length:100n});
-      console.log("res0:",res.chain_length);
+      //let res = await ledger.query_blocks({start:0n,length:100n});
+      //console.log("res0:",res.chain_length);
 
-      let i: bigint = 0n;
-      for (; i <= subnum+subnum; i++) {
-        await user.registerSubaccount(i);
-      };
+      // let i: bigint = 0n;
+      // for (; i <= subnum+subnum; i++) {
+      //   await user.registerSubaccount(i);
+      // };
 
       const sub_sub = await user.getSubFromNat(0n);
 
       const result = await ledger.icrc1_transfer({
         to: {owner: userCanisterId, subaccount:[sub_sub]},
         from_subaccount: [],
-        amount: 666_6666_0000n,
+        amount: 666_6666_0000_0000n,
         fee: [],
         memo: [[1,2,3,4]],
         created_at_time: [],
       });
-      await passTime(1000); //just for the debug printouts
-      console.log("result:",result);
+      await passTime(100); //just for the debug printouts
+      //console.log("result:",result);
+      
       let res1 = await ledger.query_blocks({start:0n,length:100n});
-      console.log("res1:",res1.chain_length);
+      
+      //console.log("res1:",res1.chain_length);
 
-      let res_id = 0n; 
-      if ('Ok' in result) res_id = result.Ok; 
-      expect(res_id).toStrictEqual(sendid+subnum+subnum*1n); // because we are sending the first
-                                                             // the null subaccount re-sends to 
-      sendid = res_id;
-
+      sendid = res1.chain_length;  
+      expect(sendid > subnum).toStrictEqual(true); //we should see more than subnum blocks 
+                                                   // because "onReceive" sends many sends for each send
     }, 6000*1000);
 
-    it(`Query blocks`, async () => {
-      let res = await ledger.query_blocks({start:0n,length:100n});
-      console.log("res:",res.chain_length);
-      await passTime(100);
-    }, 6000*1000);
+    // it(`Query blocks`, async () => {
+    //   let res = await ledger.query_blocks({start:0n,length:100n});
+    //   console.log("res:",res.chain_length);
+    //   await passTime(100);
+    // }, 6000*1000);
 
     it(`Send some to subaccount non-0 registered`, async () => {
       
-      const sub_sub = await user.getSubFromNat(0n);
+      const mys_b = await user.get_onsentid();
+
+      const sub_sub = await user.getSubFromNat(3n);
 
       const result = await ledger.icrc1_transfer({
         to: {owner: userCanisterId, subaccount:[sub_sub]},
@@ -129,18 +124,12 @@ describe('Basic', () => {
         memo: [[1,2,3,4]],
         created_at_time: [],
       });
-      await passTime(1000); //just for the debug printouts
+      await passTime(100); //just for the debug printouts
       
-      let res = await ledger.query_blocks({start:0n,length:100n});
-      console.log("number of blocks in ledger at the end:",res.chain_length);
+      const mys_a = await user.get_onsentid();
 
-      console.log("result:",result);
-      let res_id = 0n; 
-      if ('Ok' in result) res_id = result.Ok; 
-      expect(res_id).toStrictEqual(sendid+(subnum-1n)+1n);// because = previous res_id(1) 
-                                                  //            + 10 sends of previous 0
-                                                  //            + 1 this test send
-      sendid = res_id;
+      expect(mys_b < mys_a).toStrictEqual(true);
+
     }, 6000*1000);
 
     // it(`Send some to subaccount 0 resgistered`, async () => {

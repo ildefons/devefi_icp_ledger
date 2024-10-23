@@ -40,28 +40,54 @@ actor class({ledgerId: Principal}) = this {
     let dust = 10000; // leave dust to try the balance of function
 
     var onSentId: Nat = 0;
-    var numResend: Nat = 10;
+    var numResend: Nat64 = 10;
 
     ledger.onReceive(func (t) {
         //Debug.print("onReceive:"#debug_show(onSentId));
         //Debug.print("t:"#debug_show(t));
         if (t.to.subaccount == null) {  //V: NOTNECESAARY
-            Debug.print("on if");
+            //Debug.print("on if");
             //we will split into (numResend) subaccounts (from 1 to numResend)
-            var i = 0;
+            var i:Nat64 = 0;
             label sending loop {
                 let amount = t.amount / 10000; // Each account gets 1/10000
-                Debug.print("if loop:"#debug_show(i));
-                let aux = ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(Nat64.fromNat(i))}; amount; from_subaccount = t.to.subaccount; });
-                //Debug.print("aux:"#debug_show(aux));
+                //Debug.print("if loop:"#debug_show(i));
+
+                //register subaccount (if not registered already)
+                let aux = test_subaccount(i);
+                let aux_sub: Blob  = switch(aux) {
+                            case null "0" : Blob;
+                            case (?Blob) Blob;
+                        };
+                let isreg = ledger.isRegisteredAccount(aux_sub);
+                if (isreg != true) {
+                    ledger.registerSubaccount(aux);
+                }; 
+                //
+
+                let aux_send = ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(i)}; amount; from_subaccount = t.to.subaccount; });
+                //Debug.print("aux:"#debug_show(aux_send));
                 i += 1;
                 if (i >= numResend) break sending;
             }
         } else {
-            Debug.print("on else");
+            //Debug.print("on else");
             // if it has subaccount
             // we will pass half to another subaccount
             if (t.amount/10 < ledger.getFee() ) return; // if we send that it will be removed from our balance but won't register
+            
+            //register subaccount (if not registered already)
+            let aux = test_subaccount(next_subaccount_id);
+            let aux_sub: Blob  = switch(aux) {
+                        case null "0" : Blob;
+                        case (?Blob) Blob;
+                    };
+            let isreg = ledger.isRegisteredAccount(aux_sub);
+            if (isreg != true) {
+                ledger.registerSubaccount(aux);
+            }; 
+            //
+
             let ret = ledger.send({ to = {owner=ledger.me(); subaccount=test_subaccount(next_subaccount_id)}; amount = t.amount / 10 ; from_subaccount = t.to.subaccount; });
             //Debug.print("else ret:"#debug_show(ret));
             next_subaccount_id += 1;
@@ -82,7 +108,7 @@ actor class({ledgerId: Principal}) = this {
         Array.tabulate<Nat8>(len, ith_byte);
     };
 
-    public shared func setNumResend(numResend_: Nat) {
+    public shared func setNumResend(numResend_: Nat64) {
         numResend := numResend_; 
     };
     
